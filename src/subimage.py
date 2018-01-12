@@ -114,7 +114,7 @@ class Subimage(object):
     out = []
     for ii, idx in enumerate(indices):
       if verbose and np.mod(ii, 500) == 0:
-        print('loading image %d (of %d)' % (idx, len(indices)))
+        print('loading image %d (of %d)' % (ii, len(indices)))
         
       im = Image.open(self._filenames[idx])
       if self._to_grayscale:
