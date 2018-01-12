@@ -17,11 +17,27 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 
 
+def splitpath(full_path):
+  head, tail = os.path.split(full_path)
+
+  result = [tail]
+
+  while len(head) > 0:
+    [head, tail] = os.path.split(head)
+    result.append(tail)
+
+  result = [x for x in result if len(x)]
+  return result[::-1]
+
+  
+  
+
 class Subimage(object):
   def __init__(self, to_grayscale=False):
     self._filenames = []
     self._bbox = []
     self._y = []
+    self._gid = [] # group/track id - optional
     self._to_grayscale = to_grayscale
 
 
@@ -31,10 +47,11 @@ class Subimage(object):
     return out
 
 
-  def add(self, filename, bbox, y):
+  def add(self, filename, bbox, y, gid=None):
     self._filenames.append(filename)
     self._bbox.append(bbox)
     self._y.append(y)
+    self._gid.append(gid)
 
 
   def describe(self, indices):
@@ -91,10 +108,13 @@ class Subimage(object):
     return out, y[indices]
 
 
-  def get_subimages(self, indices, new_size=None, pct_context=0):
+  def get_subimages(self, indices, new_size=None, pct_context=0, verbose=False):
     "Extracts sub-indices from images."
     out = []
     for idx in indices:
+      if verbose and np.mod(idx, 500) == 0:
+        print('loading image %d (of %d)' % (idx, len(indices)))
+        
       im = Image.open(self._filenames[idx])
       if self._to_grayscale:
         im = im.convert('L')
@@ -217,6 +237,7 @@ def parse_LISA(csvfile, class_map=LISA_17_CLASS_MAP):
       continue
 
     im_filename = fields[0]
+    gid = splitpath(im_filename)[0]  # update: use top level directory as group id
     y = class_map[y_str]
     x0 = int(fields[2])
     x1 = int(fields[4])
@@ -224,7 +245,7 @@ def parse_LISA(csvfile, class_map=LISA_17_CLASS_MAP):
     y1 = int(fields[5])
     bbox = [x0,y0,x1,y1]
 
-    si.add(os.path.join(base_path, im_filename), bbox, y)
+    si.add(os.path.join(base_path, im_filename), bbox, y, gid)
 
   return si
 
