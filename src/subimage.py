@@ -110,9 +110,10 @@ class Subimage(object):
 
   def get_subimages(self, indices, new_size=None, pct_context=0, verbose=False):
     "Extracts sub-indices from images."
+    
     out = []
-    for idx in indices:
-      if verbose and np.mod(idx, 500) == 0:
+    for ii, idx in enumerate(indices):
+      if verbose and np.mod(ii, 500) == 0:
         print('loading image %d (of %d)' % (idx, len(indices)))
         
       im = Image.open(self._filenames[idx])
