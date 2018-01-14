@@ -36,6 +36,9 @@ import subimage
 import lisa
 
 
+CLASSES = lisa.LISA_17_CLASSES
+CLASS_MAP = lisa.LISA_17_CLASS_MAP
+
 
 FLAGS = flags.FLAGS
 
@@ -234,7 +237,7 @@ def load_lisa_data(with_context=True):
     if not os.path.exists(cache_fn):
         print('[load_lisa_data]: Extracting sign images from video frames...please wait...')
 
-        si = lisa.parse_LISA(annotation_file, lisa.LISA_17_CLASS_MAP)
+        si = lisa.parse_annotations(annotation_file, CLASS_MAP)
         #train_idx, test_idx = si.train_test_split(.17, max_per_class=500, reserve_for_test=['stop_1323803184.avi_image'])
         train_idx, test_idx = lisa.default_train_test_split(si, max_per_class=500)
         print(si.describe(train_idx))
@@ -446,7 +449,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     print('[info]: accuracy on clean test data: %0.2f' % acc_clean)
     print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(predictions, axis=1)))
 
-    save_images_and_estimates(X_test, Y_test, predictions, 'output/Images/Original', subimage.LISA_17_CLASSES)
+    save_images_and_estimates(X_test, Y_test, predictions, 'output/Images/Original', CLASSES)
 
 
     #--------------------------------------------------
@@ -481,8 +484,8 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, subimage.LISA_17_CLASSES)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, subimage.LISA_17_CLASSES)
+            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, CLASSES)
+            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, CLASSES)
             acc_fgm[ord].append(acc)
             acc_tgt_fgm[ord].append(acc_tgt)
 
@@ -527,8 +530,8 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, subimage.LISA_17_CLASSES)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, subimage.LISA_17_CLASSES)
+            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, CLASSES)
+            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, CLASSES)
             acc_ifgm[ord].append(acc)
             acc_tgt_ifgm[ord].append(acc_tgt)
 
@@ -603,7 +606,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
         print('l1: ', np.sum(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Elastic_c%03d' % c, subimage.LISA_17_CLASSES)
+        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Elastic_c%03d' % c, CLASSES)
         acc_all_elastic[idx] = calc_acc(Y_test, preds)
 
 
@@ -641,7 +644,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
         print('Maximum per-pixel delta: %0.1f' % np.max(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Saliency_%02d' % epsilon, subimage.LISA_17_CLASSES)
+        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Saliency_%02d' % epsilon, CLASSES)
         acc_all_saliency[idx] = calc_acc(Y_test, preds)
 
 
@@ -666,7 +669,6 @@ def main(argv=None):
     # the CNN weight file
     cnn_weight_file = os.path.join(FLAGS.train_dir, FLAGS.filename)
 
-    class_map = subimage.LISA_17_CLASS_MAP
 
     with tf.Session() as sess:
       if not os.path.exists(FLAGS.train_dir) or not tf.train.checkpoint_exists(cnn_weight_file) or FLAGS.force_retrain:
@@ -674,7 +676,7 @@ def main(argv=None):
           train_lisa_cnn(sess, cnn_weight_file)
       else:
           print("Attacking LISA-CNN")
-          attack_lisa_cnn(sess, cnn_weight_file, y_target=class_map['speedLimit45'])
+          attack_lisa_cnn(sess, cnn_weight_file, y_target=CLASS_MAP['speedLimit45'])
           #attack_lisa_cnn(sess, cnn_weight_file, y_target=None)
 
 
