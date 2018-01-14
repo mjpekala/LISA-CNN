@@ -1,7 +1,5 @@
 """
 Code to facilitate working with sub-images/regions within larger images.
-
-This module also contains some LISA-specific codes (that could be moved elsewhere later).
 """
 
 __author__ = "mjp"
@@ -17,7 +15,11 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 
 
+
 def splitpath(full_path):
+  """
+  Splits a path into all possible pieces (vs. just head/tail).
+  """
   head, tail = os.path.split(full_path)
 
   result = [tail]
@@ -194,64 +196,6 @@ class Subimage(object):
 
 #-------------------------------------------------------------------------------
 
-#LISA_CLASS_MAP = {"rightLaneMustTurn": 8, "thruMergeRight": 45, "yieldAhead": 23, "turnRight": 18, "pedestrian": 17, "signalAhead": 9, "thruMergeLeft": 40, "slow": 3, "noLeftTurn": 24, "merge": 5, "turnLeft": 35, "noRightTurn": 11, "rampSpeedAdvisory": 22, "zoneAhead45": 7, "rampSpeedAdvisory20": 33, "doNotEnter": 46, "speedLimit30": 12, "exitSpeedAdvisory": 42, "speedLimit35": 0, "noUTurn": 25, "stop": 2, "stopAhead": 14, "curveLeft": 41, "dip": 21, "leftTurn": 28, "roundabout": 26, "schoolSpeedLimit25": 30, "speedLimit": 1, "intersection": 36, "truckSpeedLimit55": 44, "keepRight": 6, "truckSpeedLimit": 37, "school": 16, "rightLaneEnds": 38, "schoolSpeedLimit": 29, "pedestrianCrossing": 10, "curve": 27, "zoneAhead25": 34, "yield": 15, "curveRight": 39, "addedLane": 4, "rampSpeedAdvisory35": 31, "laneEnds": 13, "speedLimit25": 19, "speedLimit65": 32, "speedLimitWhenFlashing": 43, "doNotPass": 47, "speedLimit45": 20}
-
-# These correspond to table 1 from Evtimov et al. "Robust Physical-World Attacks on Deep Learning Models".
-# It does *not* capture all possible classes in LISA.
-#
-LISA_17_CLASSES = ["addedLane", "keepRight", "laneEnds", "merge", "pedestrianCrossing", "school",
-                   "schoolSpeedLimit25", "signalAhead", "speedLimit25", "speedLimit30", "speedLimit35",
-                   "speedLimit45", "speedLimitUrdbl", "stop", "stopAhead", "turnRight", "yield"]
-
-LISA_17_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_17_CLASSES) }
-
-
-def parse_LISA(csvfile, class_map=LISA_17_CLASS_MAP):
-  "See also: tools/extractAnnotations.py in LISA dataset."
-  si = Subimage(to_grayscale=True)
-
-  csvfile = os.path.expanduser(csvfile)
-
-  csv = open(csvfile, 'r')
-  csv.readline() # discard header
-  csv = csv.readlines()
-
-  # Note: the original LISA parsing code shuffled the rows, but this just adds 
-  #       potential confusion so I'm not doing that for now.
-
-  # If no classmap was provided, create one.
-  if class_map is None:
-    class_map = {}
-    for line in csv:
-      fields = line.split(';')
-      if fields[1] not in class_map:
-        class_map[fields[1]] = len(class_map)
-  
-  # base path to actual filenames.
-  base_path = os.path.dirname(csvfile)
-
-  # do it
-  for idx, line in enumerate(csv):
-    fields = line.split(';')
-    y_str = fields[1]
-    if y_str not in class_map:
-      continue
-
-    im_filename = fields[0]
-    gid = splitpath(im_filename)[0]  # update: use top level directory as group id
-    y = class_map[y_str]
-    x0 = int(fields[2])
-    x1 = int(fields[4])
-    y0 = int(fields[3])
-    y1 = int(fields[5])
-    bbox = [x0,y0,x1,y1]
-
-    si.add(os.path.join(base_path, im_filename), bbox, y, gid)
-
-  return si
-
-#-------------------------------------------------------------------------------
-
 
 def _test_splicing():
   si = parse_LISA('~/Data/LISA/allAnnotations.csv')
@@ -280,6 +224,9 @@ def _test_reserve_images():
 
 
 if __name__ == "__main__":
+  # we need some data for testing; just use LISA for now.
+  from lisa import parse_LISA
+  
   _test_splicing() 
   _test_reserve_images()
 
@@ -294,5 +241,4 @@ if __name__ == "__main__":
   print('extracting sub-images...')
   x_test, y_test = si.get_subimages(test_idx, (32,32), pct_context=.5)
   x_test = np.array(x_test) # [] -> tensor
-  print(x_test.shape) # TEMP
   np.savez('test_images.npz', x_test=x_test, y_test=y_test)
