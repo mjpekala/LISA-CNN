@@ -1,6 +1,6 @@
 #!/bin/env python
 
-""" Code for developing and attacking a simple street sign detector.
+""" Code for developing and attacking a simple street sign detector based on the LISA data set.
 
 REFERENCES:
  - LISA data set http://cvrr.ucsd.edu/LISA/lisa-traffic-sign-dataset.html
@@ -33,6 +33,8 @@ from cleverhans.utils_keras import cnn_model
 from cleverhans.utils_tf import model_train, model_eval, batch_eval
 
 import subimage
+import lisa
+
 
 
 FLAGS = flags.FLAGS
@@ -232,8 +234,9 @@ def load_lisa_data(with_context=True):
     if not os.path.exists(cache_fn):
         print('[load_lisa_data]: Extracting sign images from video frames...please wait...')
 
-        si = subimage.parse_LISA(annotation_file)
-        train_idx, test_idx = si.train_test_split(.17, max_per_class=500, reserve_for_test=['stop_1323803184.avi_image'])
+        si = lisa.parse_LISA(annotation_file, lisa.LISA_17_CLASS_MAP)
+        #train_idx, test_idx = si.train_test_split(.17, max_per_class=500, reserve_for_test=['stop_1323803184.avi_image'])
+        train_idx, test_idx = lisa.default_train_test_split(si, max_per_class=500)
         print(si.describe(train_idx))
         print(si.describe(test_idx))
 
