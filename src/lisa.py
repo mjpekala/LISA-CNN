@@ -72,8 +72,10 @@ def default_train_test_split(si, max_per_class=np.Inf):
     #
     # * = This statement is for the LISA-17 variant of the dataset...
     #
-    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
-    test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
+    #train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
+    #test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
+    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120214-2','aiua120306-1'] + ['vid%d' % x for x in range(6)]
+    test_grp = ['aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
 
     train_idx = []
     test_idx = []
