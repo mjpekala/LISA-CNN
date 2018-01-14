@@ -47,7 +47,7 @@ flags.DEFINE_string('data_dir','/home/neilf/Fendley/data/signDatabase/annotation
 flags.DEFINE_string(
     'filename', 'lisacnn.ckpt', 'Filename to save model under.')
 flags.DEFINE_integer('nb_classes', 48, 'Number of classes')
-flags.DEFINE_integer('nb_epochs', 60, 'Number of epochs to train model')
+flags.DEFINE_integer('nb_epochs', 80, 'Number of epochs to train model')
 flags.DEFINE_integer('batch_size', 128, 'Size of training batches')
 flags.DEFINE_float('learning_rate', 0.001, 'Learning rate for training') # use this for values in [0,1]
 flags.DEFINE_float('epsilon', 20, 'FGSM perturbation constraint')
@@ -257,8 +257,9 @@ def load_lisa_data(with_context=True):
         #
         # signs *with* extra context
         #
-        sz = 38
-        pct = (38-32)/38.
+        #sz = 38
+        sz = 42
+        pct = float(sz-32)/sz
         x_train_c, y_train_c = si.get_subimages(train_idx, (sz,sz), pct)
         x_train_c = np.array(x_train_c)
         y_train_c = np.array(y_train_c)
