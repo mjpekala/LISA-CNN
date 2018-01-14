@@ -16,23 +16,6 @@ from sklearn.model_selection import train_test_split
 
 
 
-def splitpath(full_path):
-  """
-  Splits a path into all possible pieces (vs. just head/tail).
-  """
-  head, tail = os.path.split(full_path)
-
-  result = [tail]
-
-  while len(head) > 0:
-    [head, tail] = os.path.split(head)
-    result.append(tail)
-
-  result = [x for x in result if len(x)]
-  return result[::-1]
-
-  
-  
 
 class Subimage(object):
   def __init__(self, to_grayscale=False):
