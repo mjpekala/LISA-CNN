@@ -43,12 +43,35 @@ def splitpath(full_path):
   return result[::-1]
 
 
+def at_most_n_per_class(y, n):
+    y_all = np.unique(y)
+    indices_to_keep = []
 
-def default_train_test_split(si):
+    for yi in y_all:
+        indices = np.nonzero(y == yi)[0]
+
+        if indices.size <= n:
+            indices_to_keep.append(indices)
+        else:
+            subset = np.random.choice(indices, n)
+            indices_to_keep.append(subset)
+
+    indices_to_keep = np.concatenate(indices_to_keep)
+    return indices_to_keep
+
+
+
+def default_train_test_split(si, max_per_class=np.Inf):
     """ Generates a track-based train/test split.
 
         si : a Subimage object corresponding to the LISA data set.
     """
+
+    # This choice was somewhat arbitrary, but empirically seems to do an OK job of preserving
+    # the class distributions across train an tests (see associated python notebook)*
+    #
+    # * = This statement is for the LISA-17 variant of the dataset...
+    #
     train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
     test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
 
@@ -71,6 +94,18 @@ def default_train_test_split(si):
     # make sure (train, test) partition the total set of images
     assert(np.setdiff1d(train_idx, test_idx).size == train_idx.size)
     assert(test_idx.size + train_idx.size == len(si._y))
+    
+    # (optional) if a maximum # of examples per class was specified, downsample 
+    if np.isfinite(max_per_class):
+        y_all = np.array(si._y)
+        
+        y_train = y_all[train_idx]
+        indices_to_keep = at_most_n_per_class(y_train, max_per_class)
+        train_idx = train_idx[indices_to_keep]
+        
+        y_test = y_all[test_idx]
+        indices_to_keep = at_most_n_per_class(y_test, max_per_class)
+        test_idx = test_idx[indices_to_keep]
 
     return train_idx, test_idx
 
