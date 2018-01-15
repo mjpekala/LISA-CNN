@@ -29,7 +29,7 @@ from tensorflow.python.platform import flags
 import keras
 
 from cleverhans.attacks import FastGradientMethod, BasicIterativeMethod, SaliencyMapMethod, VirtualAdversarialMethod, CarliniWagnerL2, ElasticNetMethod
-from cleverhans.utils_keras import cnn_model
+from cleverhans.utils_keras import cnn_model, KerasModelWrapper
 from cleverhans.utils_tf import model_train, model_eval, batch_eval
 
 import subimage
@@ -214,6 +214,7 @@ def save_images_and_estimates(x, y_true_OH, y_est_OH, base_dir, y_to_classname=N
 #-------------------------------------------------------------------------------
 # LISA-CNN codes
 #-------------------------------------------------------------------------------
+
 
 def load_lisa_data(with_context=True):
     """
@@ -405,6 +406,7 @@ def train_lisa_cnn(sess, cnn_weight_file):
 
 
 
+
 def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     """ Generates AE for the LISA-CNN.
         Assumes you have already run train_lisa_cnn() to train the network.
@@ -436,7 +438,8 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     #--------------------------------------------------
     model, x_tf, y_tf = make_lisa_cnn(sess, FLAGS.batch_size, X_train.shape[1])
     model_output = model(x_tf)
-    # TODO: wrap in cleverhans Model object
+
+    model_CH = KerasModelWrapper(model) # to make CH happy
 
     saver = tf.train.Saver()
     saver.restore(sess, cnn_weight_file)
@@ -457,7 +460,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     # Fast Gradient Attack
     #--------------------------------------------------
     # symbolic representation of attack
-    attack = FastGradientMethod(model, sess=sess)
+    attack = FastGradientMethod(model_CH, sess=sess)
     acc_fgm = {}
     acc_tgt_fgm = {}
 
@@ -494,7 +497,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     #--------------------------------------------------
     # Iterative attack
     #--------------------------------------------------
-    attack = BasicIterativeMethod(model, sess=sess)
+    attack = BasicIterativeMethod(model_CH, sess=sess)
     acc_ifgm = {}
     acc_tgt_ifgm = {}
 
@@ -569,7 +572,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     # Elastic Net
     # Note: this attack takes awhile to compute...(compared to *FGSM)
     #--------------------------------------------------
-    attack = ElasticNetMethod(model, sess=sess)
+    attack = ElasticNetMethod(model_CH, sess=sess)
     c_vals = [1e-2, 1e-1, 1, 1e2, 1e4]
     acc_all_elastic = np.zeros((len(c_vals),))
 
