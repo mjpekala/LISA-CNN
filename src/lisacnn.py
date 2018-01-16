@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
+from tensorflow.python.ops.image_ops import per_image_standardization
 
 import keras
 
@@ -210,6 +211,42 @@ def save_images_and_estimates(x, y_true_OH, y_est_OH, base_dir, y_to_classname=N
         img.save(os.path.join(out_dir, fn))
 
 
+def simple_cnn_model(input_shape=(32,32,1), nb_filters=64, nb_classes=48):
+    """
+    A slight variation on cleverhans.utils_keras.cnn_model()
+    """
+    #model = Sequential()
+
+    def normalize(x):
+        mu = tf.reduce_mean(x, axis=2, keep_dims=True)
+        return x - mu
+        #_, sigma = tf.nn.moments(x, axes=[0])  # along mini-batch dimension
+        #return (x - mu) / sigma
+
+        
+    # Define the layers successively (convolution layers are version dependent)
+    assert(keras.backend.image_dim_ordering() == 'tf')
+
+    image_input = keras.layers.Input(shape=input_shape)
+
+    # Note: I assume here the backend is tensorflow!
+    #x = keras.layers.Lambda(lambda x: x - tf.reduce_mean(x, axis=2, keep_dims=True))(image_input)
+    x = keras.layers.Lambda(normalize)(image_input)
+
+    x = keras.layers.Conv2D(nb_filters, kernel_size=(8,8), strides=(2,2), padding="same")(x)
+    x = keras.layers.Activation('relu')(x)
+    x = keras.layers.Conv2D(nb_filters, kernel_size=(6,6), strides=(2,2), padding="valid")(x)
+    x = keras.layers.Activation('relu')(x)
+    x = keras.layers.Conv2D(nb_filters*2, kernel_size=(5,5), strides=(1,1), padding="valid")(x)
+    x = keras.layers.Activation('relu')(x)
+    x = keras.layers.Flatten()(x)
+    x = keras.layers.Dense(nb_classes)(x)
+    predictions = keras.layers.Activation('softmax')(x)
+
+    model = keras.models.Model(inputs=image_input, outputs=predictions)
+
+    return model
+
 
 #-------------------------------------------------------------------------------
 # LISA-CNN codes
@@ -370,7 +407,8 @@ def make_lisa_cnn(sess, batch_size, dim):
 
     # XXX: set layer naming convention explicitly? 
     #      Otherwise, names depend upon when model was created...
-    model = cnn_model(img_rows=32, img_cols=32, channels=num_channels, nb_classes=num_classes)
+    #model = cnn_model(img_rows=32, img_cols=32, channels=num_channels, nb_classes=num_classes)
+    model = simple_cnn_model()
 
     return model, x, y
 
@@ -407,7 +445,7 @@ def train_lisa_cnn(sess, cnn_weight_file):
 
 
 
-def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
+def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
     """ Generates AE for the LISA-CNN.
         Assumes you have already run train_lisa_cnn() to train the network.
     """
@@ -437,9 +475,15 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     # Initialize model that we will attack
     #--------------------------------------------------
     model, x_tf, y_tf = make_lisa_cnn(sess, FLAGS.batch_size, X_train.shape[1])
-    model_output = model(x_tf)
-
     model_CH = KerasModelWrapper(model) # to make CH happy
+
+    # the input may or may not require some additional transformation
+    if standardize:
+        x_input = tf.map_fn(lambda z: per_image_standardization(z), x_tf)
+    else:
+        x_input = x_tf
+    model_output = model(x_input)
+
 
     saver = tf.train.Saver()
     saver.restore(sess, cnn_weight_file)
@@ -448,7 +492,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
     # Performance on clean data
     # (try this before attacking)
     #--------------------------------------------------
-    predictions = run_in_batches(sess, x_tf, y_tf, model(x_tf), X_test, Y_test, FLAGS.batch_size)
+    predictions = run_in_batches(sess, x_tf, y_tf, model_output, X_test, Y_test, FLAGS.batch_size)
     acc_clean = calc_acc(Y_test, predictions)
     print('[info]: accuracy on clean test data: %0.2f' % acc_clean)
     print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(predictions, axis=1)))
@@ -484,7 +528,8 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
             # Currently using the same model we originally attacked.
             #
             model_eval = model
-            preds_tf = model_eval(x_tf)
+            #preds_tf = model_eval(x_tf)
+            preds_tf = model_eval(x_input)
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
@@ -530,7 +575,8 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None):
             # Currently using the same model we originally attacked.
             #
             model_eval = model
-            preds_tf = model_eval(x_tf)
+            #preds_tf = model_eval(x_tf)
+            preds_tf = model_eval(x_input)
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
