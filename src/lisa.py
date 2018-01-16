@@ -23,6 +23,8 @@ LISA_17_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_17_CLASSES) }
 LISA_SPEED_LIMIT_CLASSES = ['speedLimit25', 'speedLimit30', 'speedLimit35', 'speedLimit40',
                             'speedLimit45', 'speedLimit50', 'speedLimit55', 'speedLimit60', 'speedLimit65']
 
+LISA_SPEED_LIMIT_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_SPEED_LIMIT_CLASSES) }
+
 #-------------------------------------------------------------------------------
 
 
@@ -87,7 +89,8 @@ def default_train_test_split(si, max_per_class=np.Inf):
     
     for gid in test_grp:
         indices = [x for x in range(len(si._y)) if si._gid[x] == gid]
-        assert(len(indices) > 0)
+        if len(indices) <= 0:
+             print('WARNING: dataset %s has no relevant classes!' % gid)
         test_idx.extend(indices)
 
     train_idx = np.array(train_idx, np.int32)
