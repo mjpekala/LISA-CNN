@@ -16,6 +16,24 @@ from sklearn.model_selection import train_test_split
 
 
 
+def at_most_n_per_class(y, n):
+    y_all = np.unique(y)
+    indices_to_keep = []
+
+    for yi in y_all:
+        indices = np.nonzero(y == yi)[0]
+
+        if indices.size <= n:
+            indices_to_keep.append(indices)
+        else:
+            subset = np.random.choice(indices, n)
+            indices_to_keep.append(subset)
+
+    indices_to_keep = np.concatenate(indices_to_keep)
+    return indices_to_keep
+
+ 
+
 
 class Subimage(object):
   def __init__(self, to_grayscale=False):
@@ -48,34 +66,24 @@ class Subimage(object):
     return out
 
 
-  def train_test_split(self, pct_test, max_per_class=np.Inf, reserve_for_test=[]):
-    assert(pct_test < 1.0)
+  def group_info(self):
+    """ Provides some information related to group structure.
+    """
+    group_to_class = {}
+    group_to_count = {}
+    
+    for group_id, y in zip(self._gid, self._y):
+      # increment # of examples for this track by one
+      group_to_count[group_id] = 1 if group_id not in group_to_count else group_to_count[group_id] + 1
 
-    # (optional): there may be certain images we want to explicitly reserve for test
-    reserved_indices = []
-    for pattern in reserve_for_test:
-      for idx, filename in enumerate(self._filenames):
-        if pattern in filename:
-          reserved_indices.append(idx)
-    reserved_indices = np.array(reserved_indices, dtype=np.int32)
+      # store/check the class label for this track
+      if group_id not in group_to_class:
+        group_to_class[group_id] = y
+      elif group_to_class[group_id] != y:
+        print('ERROR: ', group_id, y, group_to_class[group_id])
 
-    # generate the train/test split
-    indices = np.delete(np.arange(len(self._y)), reserved_indices)
-    class_labels = np.delete(np.array(self._y, dtype=np.int32), reserved_indices)
-
-    train, test = train_test_split(indices, test_size=pct_test, stratify=class_labels)
-    test = np.concatenate([test, np.array(reserved_indices, dtype=np.int32)])
-
-    # (optional): limit max # of examples in a given class (for training)
-    if np.isfinite(max_per_class):
-      y = np.array(self._y)
-
-      for yi in np.unique(y):
-        yi_idx = np.nonzero(y[train] == yi)[0]
-        if len(yi_idx) > max_per_class:
-          train = np.delete(train, yi_idx[max_per_class:])
-
-    return train, test
+    return group_to_class, group_to_count
+          
 
 
   def get_images(self, indices):
@@ -92,6 +100,7 @@ class Subimage(object):
     y = np.array(self._y)
     return out, y[indices]
 
+  
 
   def get_subimages(self, indices, new_size=None, pct_context=0, verbose=False):
     "Extracts sub-indices from images."
@@ -138,6 +147,7 @@ class Subimage(object):
     y = np.array(self._y)
     return out, y[indices]
 
+  
 
   def splice_subimages(self, indices, new_subimage):
     """
@@ -176,6 +186,50 @@ class Subimage(object):
       out.append(xi)
 
     return out
+
+ 
+
+  def train_test_split_by_group(self, pct_test, max_per_class=None):
+    """ Provides a train/test split whereby a given group g is contained entirely within
+        exactly one of train or test.  
+
+        Note that the percentage test in this context is in terms of groups; if groups have
+        vastly different cardinality the per-example distribution may be very different.
+    """
+    assert(pct_test < 1.0)
+
+    # XXX: could try to use group cardinality to balance per-example (future feature)
+    grp_to_y, _ = self.group_info()
+
+    all_groups = list(grp_to_y.keys())
+    y_for_groups = [grp_to_y[g] for g in all_groups]
+
+    # generate the train/test split
+    train_groups_idx, test_groups_idx = train_test_split(range(len(all_groups)), test_size=pct_test, stratify=y_for_groups)
+
+
+    # map group indices back to individual example indices
+    train_idx = []
+    for g_idx in train_groups_idx:
+      indices = [i for i,x in enumerate(self._gid) if x == all_groups[g_idx]]
+      train_idx.extend(indices)
+
+    test_idx = []
+    for g_idx in test_groups_idx:
+      indices = [i for i,x in enumerate(self._gid) if x == all_groups[g_idx]]
+      test_idx.extend(indices)
+
+
+    # downsample so that we have no more than N per class (optional)
+    if max_per_class is not None:
+      y_train = [self._y[x] for x in train_idx]
+      train_idx = [train_idx[x] for x in at_most_n_per_class(np.array(y_train), max_per_class)]
+
+      y_test = [self._y[x] for x in test_idx]
+      test_idx = [test_idx[x] for x in at_most_n_per_class(np.array(y_test), max_per_class)]
+
+    return train_idx, test_idx
+
 
 #-------------------------------------------------------------------------------
 
