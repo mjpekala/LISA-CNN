@@ -195,6 +195,9 @@ class Subimage(object):
 
         Note that the percentage test in this context is in terms of groups; if groups have
         vastly different cardinality the per-example distribution may be very different.
+
+        This method returns train/test indices on a per-example basis (where group membership
+        is respected as per the above).
     """
     assert(pct_test < 1.0)
 
@@ -228,6 +231,10 @@ class Subimage(object):
       y_test = [self._y[x] for x in test_idx]
       test_idx = [test_idx[x] for x in at_most_n_per_class(np.array(y_test), max_per_class)]
 
+      
+    # make certain these two sets are disjoint (on a per-example basis)
+    assert(np.intersect1d(np.array(train_idx), np.array(test_idx)).size == 0)
+    
     return train_idx, test_idx
 
 
