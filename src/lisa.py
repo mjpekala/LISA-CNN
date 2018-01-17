@@ -19,11 +19,10 @@ LISA_17_CLASSES = ["addedLane", "keepRight", "laneEnds", "merge", "pedestrianCro
 LISA_17_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_17_CLASSES) }
 
 
-# This is the subset of "conventional" speed limit signs
-LISA_SPEED_LIMIT_CLASSES = ['speedLimit25', 'speedLimit30', 'speedLimit35', 'speedLimit40',
-                            'speedLimit45', 'speedLimit50', 'speedLimit55', 'speedLimit60', 'speedLimit65']
-
-LISA_SPEED_LIMIT_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_SPEED_LIMIT_CLASSES) }
+#LISA_SPEED_LIMIT_CLASSES = ['speedLimit25', 'speedLimit30', 'speedLimit35', 'speedLimit40',
+#                            'speedLimit45', 'speedLimit50', 'speedLimit55', 'speedLimit60', 'speedLimit65']
+#
+#LISA_SPEED_LIMIT_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_SPEED_LIMIT_CLASSES) }
 
 #-------------------------------------------------------------------------------
 
@@ -45,39 +44,27 @@ def splitpath(full_path):
   return result[::-1]
 
 
-def at_most_n_per_class(y, n):
-    y_all = np.unique(y)
-    indices_to_keep = []
-
-    for yi in y_all:
-        indices = np.nonzero(y == yi)[0]
-
-        if indices.size <= n:
-            indices_to_keep.append(indices)
-        else:
-            subset = np.random.choice(indices, n)
-            indices_to_keep.append(subset)
-
-    indices_to_keep = np.concatenate(indices_to_keep)
-    return indices_to_keep
 
 
-
-def default_train_test_split(si, max_per_class=np.Inf):
+def default_train_test_split(si, max_per_class=500):
     """ Generates a track-based train/test split.
 
         si : a Subimage object corresponding to the LISA data set.
     """
 
+    np.random.seed(1066)
+    return si.train_test_split_by_group(0.2, max_per_class)
+
+
+
+def _obsolete_remove_me(si):
     # This choice was somewhat arbitrary, but empirically seems to do an OK job of preserving
     # the class distributions across train an tests (see associated python notebook)*
     #
     # * = This statement is for the LISA-17 variant of the dataset...
     #
-    #train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
-    #test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
-    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120214-2','aiua120306-1'] + ['vid%d' % x for x in range(6)]
-    test_grp = ['aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
+    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
+    test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
 
     train_idx = []
     test_idx = []
@@ -146,18 +133,24 @@ def parse_annotations(csvfile, class_map=LISA_17_CLASS_MAP):
     # do it
     for idx, line in enumerate(csv):
         fields = line.split(';')
-        y_str = fields[1]
+        y_str = fields[1]  # string representation of class label
         if y_str not in class_map:
             continue
 
         im_filename = fields[0]
-        gid = splitpath(im_filename)[0]  # update: use top level directory as group id
+        #gid = splitpath(im_filename)[0]  # update: use top level directory as group id
         y = class_map[y_str]
         x0 = int(fields[2])
         x1 = int(fields[4])
         y0 = int(fields[3])
         y1 = int(fields[5])
         bbox = [x0,y0,x1,y1]
+
+        # The group id is a combination of the track id and the class label.
+        # A given track may have multiple class labels; I think this may be because
+        # images may may have multiple signs.
+        track_id = fields[-2] # this is string like: speedLimit_xxxx.avi
+        gid = track_id + '_' + y_str
 
         si.add(os.path.join(base_path, im_filename), bbox, y, gid)
 
