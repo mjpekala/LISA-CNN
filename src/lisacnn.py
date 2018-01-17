@@ -664,7 +664,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
     # Saliency Map Attack
     # Note: this is *extremely* slow; will require overnight runs
     #--------------------------------------------------
-    attack = SaliencyMapMethod(model, sess=sess)
+    attack = SaliencyMapMethod(model_CH, sess=sess)
     acc_all_saliency = np.zeros((len(epsilon_values),))
 
     #for idx, epsilon in enumerate(epsilon_values):
