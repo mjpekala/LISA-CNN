@@ -37,4 +37,4 @@ bare :
 
 # creates a tar file with all images
 tar :
-	cd output && tar cvf ../images.tar ./images
+	cd output && tar cvf ../images.tar ./Images/FGM-ellinf* ./Images/I-FGM-ellinf* ./Images/Original
