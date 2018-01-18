@@ -5,6 +5,7 @@ import os, math
 from PIL import Image
 
 import numpy as np
+from sklearn.metrics import confusion_matrix
 
 import tensorflow as tf
 import keras
