@@ -1,5 +1,10 @@
 """
-Code for working with LISA dataset.
+  Code for working with LISA dataset.
+
+
+ References:
+   o LISA data set http://cvrr.ucsd.edu/LISA/lisa-traffic-sign-dataset.html
+
 """
 
 import os
@@ -19,29 +24,13 @@ LISA_17_CLASSES = ["addedLane", "keepRight", "laneEnds", "merge", "pedestrianCro
 LISA_17_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_17_CLASSES) }
 
 
-#LISA_SPEED_LIMIT_CLASSES = ['speedLimit25', 'speedLimit30', 'speedLimit35', 'speedLimit40',
-#                            'speedLimit45', 'speedLimit50', 'speedLimit55', 'speedLimit60', 'speedLimit65']
-#
-#LISA_SPEED_LIMIT_CLASS_MAP = { x : ii for ii,x in enumerate(LISA_SPEED_LIMIT_CLASSES) }
+# Back when we did train/test splits on a per-directory basis (rather than per-track)
+# this is the split that we used.  We no longer do this, however.
+
+#    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
+#    test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
 
 #-------------------------------------------------------------------------------
-
-
-
-def splitpath(full_path):
-  """
-  Splits a path into all possible pieces (vs. just head/tail).
-  """
-  head, tail = os.path.split(full_path)
-
-  result = [tail]
-
-  while len(head) > 0:
-    [head, tail] = os.path.split(head)
-    result.append(tail)
-
-  result = [x for x in result if len(x)]
-  return result[::-1]
 
 
 
@@ -51,7 +40,6 @@ def default_train_test_split(si, max_per_class=500):
 
         si : a Subimage object corresponding to the LISA data set.
     """
-
     np.random.seed(1066)
     return si.train_test_split_by_group(0.2, max_per_class)
 
@@ -63,8 +51,6 @@ def _obsolete_remove_me(si):
     #
     # * = This statement is for the LISA-17 variant of the dataset...
     #
-    train_grp = ['aiua120214-0', 'aiua120214-1', 'aiua120306-1'] + ['vid%d' % x for x in range(6)]
-    test_grp = ['aiua120214-2', 'aiua120306-0'] + ['vid%d' % x for x in range(6,12)]
 
     train_idx = []
     test_idx = []
@@ -138,7 +124,6 @@ def parse_annotations(csvfile, class_map=LISA_17_CLASS_MAP):
             continue
 
         im_filename = fields[0]
-        #gid = splitpath(im_filename)[0]  # update: use top level directory as group id
         y = class_map[y_str]
         x0 = int(fields[2])
         x1 = int(fields[4])
