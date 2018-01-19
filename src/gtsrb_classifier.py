@@ -35,7 +35,7 @@ import gtsrb
 
 
 
-def preprocess_data(image_dir, output_dir):
+def load_gtsrb_data(image_dir, output_dir):
     """
     """
     cache_fn = os.path.join(output_dir, 'gtsrb_data.npz')
@@ -52,22 +52,20 @@ def preprocess_data(image_dir, output_dir):
         print(si.describe(test_idx))
 
         #
-        # signs *without* extra context
+        # signs *without* any extra context
         #
-        x_train, y_train = si.get_subimages(train_idx, (33,33), 0.0)
+        x_train, y_train = si.get_subimages(train_idx, (32,32), 0.0)
         x_train = np.array(x_train) # list -> tensor
-        y_train = np.array(y_train)
+        y_train = np.array(y_train).astype(np.int32)
 
-        x_test, y_test = si.get_subimages(test_idx, (33,33), 0.0)
+        x_test, y_test = si.get_subimages(test_idx, (32,32), 0.0)
         x_test = np.array(x_test) # list -> tensor
-        y_test = np.array(y_test)
+        y_test = np.array(y_test).astype(np.int32)
 
         # (optional) rescale
         if True:
             x_train = x_train.astype(np.float32) / 255.
             x_test = x_test.astype(np.float32) / 255.
-            x_train_c = x_train_c.astype(np.float32) / 255.
-            x_test_c = x_test_c.astype(np.float32) / 255.
 
         # save for quicker reload next time
         makedirs_if_needed(os.path.dirname(cache_fn))
@@ -91,47 +89,11 @@ def preprocess_data(image_dir, output_dir):
 
 
 
-def data_lisa(with_context):
-    """
-    Funtion to read in the data prepared by the lisa dataset
-    The train test split will be randomly generated, or loaded if you have a /tmp 
-    split saved already
-    Returns:
-        xtrain: numpy array of the training data 
-        ytrain: categorical array of training labels
-        xtest: numpy array of the test data
-        ytest: numpy array of the test labels
-    
-    """
-    # NOTE: it would appear the LISA annotation extraction code introduces some 
-    #       label noise.  Therefore, we do the extraction ourselves.
-    X_train, Y_train, X_test, Y_test = load_lisa_data(with_context)
-
-    X_train = X_train.astype('float32')
-    X_test = X_test.astype('float32')
-
-    # Note: we moved the affine rescaling directly into the network
-
-    # Downsample to promote class balance during training
-    #X_train, Y_train = downsample_data_set(X_train, Y_train, per_class_limit)
-
-    print('X_train shape:', X_train.shape)
-    print('Y_train shape:', Y_train.shape)
-    print('X_test shape: ', X_test.shape)
-
-    all_labels = np.unique(Y_train)
-    print('There are %d unique classes:' % all_labels.size)
-    for yi in all_labels:
-        print('  y=%d : %d' % (yi, np.sum(Y_train==yi)))
-
-    Y_train = to_categorical(Y_train, FLAGS.nb_classes)
-    Y_test = to_categorical(Y_test, FLAGS.nb_classes)
-
-    return X_train, Y_train, X_test, Y_test
 
 
 
-def make_lisa_cnn(sess, batch_size, dim):
+
+def make_cnn(sess, batch_size, dim, num_classes=43):
     """  Creates a simple sign classification network.
     
     Note that the network produced by cnn_model() is fairly weak.
@@ -143,52 +105,49 @@ def make_lisa_cnn(sess, batch_size, dim):
     caller is responsible for resizing x to make it
     compatible with the model (e.g. via random crops).
     """
-    num_classes=48  # usually only use 17 vs 48 classes, but it doesn't hurt to have room for 48
-    num_channels=1
+    num_channels=1  # assuming grayscale for now
     x = tf.placeholder(tf.float32, shape=(batch_size, dim, dim, num_channels))
     y = tf.placeholder(tf.float32, shape=(batch_size, num_classes))
 
     # XXX: set layer naming convention explicitly? 
     #      Otherwise, names depend upon when model was created...
-    #model = cnn_model(img_rows=32, img_cols=32, channels=num_channels, nb_classes=num_classes)
-    model = simple_cnn_model()
+    model = simple_cnn_model(input_shape=(dim,dim,num_channels), nb_classes=num_classes)
 
     return model, x, y
 
 
 
-def train_lisa_cnn(sess, cnn_weight_file):
-    """ Trains the LISA-CNN network.
+def train_cnn(sess, data, cnn_weight_file, batch_size=128):
+    """ Trains a sign classifier.
     """
-    X_train, Y_train, X_test, Y_test = data_lisa(with_context=True)
+    X_train, Y_train, X_test, Y_test = data
 
-    model, x, y = make_lisa_cnn(sess, FLAGS.batch_size, X_train.shape[1])
+    model, x, y = make_cnn(sess, batch_size, X_train.shape[1])
 
     # construct an explicit predictions variable
-    x_crop = tf.random_crop(x, (FLAGS.batch_size, 32, 32, X_train.shape[-1]))
-    model_output = model(x_crop)
+    model_output = model(x)
 
     def evaluate():
-        # Evaluate accuracy of the lisaCNN model on clean test examples.
-        preds = run_in_batches(sess, x, y, model_output, X_test, Y_test, FLAGS.batch_size)
+        # Evaluate accuracy of the model on clean test examples.
+        preds = run_in_batches(sess, x, y, model_output, X_test, Y_test, batch_size)
         print('test accuracy: ', calc_acc(Y_test, preds))
 
     # Note: model_train() will add some new (Adam-related) variables to the graph
     train_params = {
-        'nb_epochs': FLAGS.nb_epochs,
-        'batch_size': FLAGS.batch_size,
-        'learning_rate': FLAGS.learning_rate
+        'nb_epochs': 30,
+        'batch_size': batch_size,
+        'learning_rate': 0.0001, 
     }
     model_train(sess, x, y, model_output, X_train, Y_train, evaluate=evaluate, args=train_params)
 
     saver = tf.train.Saver()
     save_path = saver.save(sess, cnn_weight_file)
-    print("Model was saved to " +  cnn_weight_file)
+    print("[train_cnn]: model was saved to " +  cnn_weight_file)
 
 
 
 
-def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
+def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
     """ Generates AE for the LISA-CNN.
         Assumes you have already run train_lisa_cnn() to train the network.
     """
@@ -197,14 +156,13 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
                         2 :      [.1, 1, 10]}
 
     #--------------------------------------------------
-    # data set prep
+    # data prep
     #--------------------------------------------------
-    # Note: we load the version of the data *without* extra context
-    X_train, Y_train, X_test, Y_test = data_lisa(with_context=False)
+    X_train, Y_train, X_test, Y_test = data
 
     # Create one-hot target labels (needed for targeted attacks only)
     if y_target is not None:
-        Y_target_OB = categorical_matrix(y_target, FLAGS.batch_size, Y_test.shape[1])
+        Y_target_OB = categorical_matrix(y_target, batch_size, Y_test.shape[1])
         Y_target = categorical_matrix(y_target, Y_test.shape[0], Y_test.shape[1])
     else:
         Y_target_OB = None
@@ -217,16 +175,9 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
     #--------------------------------------------------
     # Initialize model that we will attack
     #--------------------------------------------------
-    model, x_tf, y_tf = make_lisa_cnn(sess, FLAGS.batch_size, X_train.shape[1])
+    model, x_tf, y_tf = make_cnn(sess, batch_size, X_train.shape[1])
     model_CH = KerasModelWrapper(model) # to make CH happy
-
-    # the input may or may not require some additional transformation
-    if standardize:
-        x_input = tf.map_fn(lambda z: per_image_standardization(z), x_tf)
-    else:
-        x_input = x_tf
-    model_output = model(x_input)
-
+    model_output = model(x_tf)
 
     saver = tf.train.Saver()
     saver.restore(sess, cnn_weight_file)
@@ -235,12 +186,12 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
     # Performance on clean data
     # (try this before attacking)
     #--------------------------------------------------
-    predictions = run_in_batches(sess, x_tf, y_tf, model_output, X_test, Y_test, FLAGS.batch_size)
+    predictions = run_in_batches(sess, x_tf, y_tf, model_output, X_test, Y_test, batch_size)
     acc_clean = calc_acc(Y_test, predictions)
     print('[info]: accuracy on clean test data: %0.2f' % acc_clean)
     print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(predictions, axis=1)))
 
-    save_images_and_estimates(X_test, Y_test, predictions, 'output/Images/Original', CLASSES)
+    save_images_and_estimates(X_test, Y_test, predictions, 'output/Images/Original')
 
 
     #--------------------------------------------------
@@ -262,22 +213,21 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
             x_adv_tf = attack.generate(x_tf, eps=epsilon, y_target=Y_target_OB, clip_min=0.0, clip_max=c_max, ord=ord)
 
             if Y_target is not None:
-                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, FLAGS.batch_size)
+                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, batch_size)
             else:
-                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, FLAGS.batch_size)
+                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, batch_size)
 
             #
             # Evaluate the AE. 
             # Currently using the same model we originally attacked.
             #
             model_eval = model
-            #preds_tf = model_eval(x_tf)
-            preds_tf = model_eval(x_input)
-            preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
+            preds_tf = model_eval(x_tf)
+            preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, CLASSES)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, CLASSES)
+            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc)
+            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc)
             acc_fgm[ord].append(acc)
             acc_tgt_fgm[ord].append(acc_tgt)
 
@@ -309,22 +259,21 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
             # on the test data.
             #
             if Y_target is not None:
-                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, FLAGS.batch_size)
+                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, batch_size)
             else:
-                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, FLAGS.batch_size)
+                X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, batch_size)
 
             #
             # Evaluate the AE. 
             # Currently using the same model we originally attacked.
             #
             model_eval = model
-            #preds_tf = model_eval(x_tf)
-            preds_tf = model_eval(x_input)
-            preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
+            preds_tf = model_eval(x_tf)
+            preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc, CLASSES)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc, CLASSES)
+            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc)
+            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc)
             acc_ifgm[ord].append(acc)
             acc_tgt_ifgm[ord].append(acc_tgt)
 
@@ -355,8 +304,6 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         plt.close()
 
 
-
-
     #--------------------------------------------------
     # Elastic Net
     # Note: this attack takes awhile to compute...(compared to *FGSM)
@@ -368,7 +315,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
     if 0:   # turn off for now, is slow
     #for idx, c in enumerate(c_vals):
         x_adv_tf = attack.generate(x_tf, 
-                                   batch_size=FLAGS.batch_size,
+                                   batch_size=batch_size,
                                    y_target=Y_target_OB, 
                                    beta=1e-3,            # ell_1 coeff
                                    confidence=1e-2,      # \kappa value from equation (4)
@@ -381,9 +328,9 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         # on the test data.
         #
         if Y_target is not None:
-            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, FLAGS.batch_size)
+            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, batch_size)
         else:
-            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, FLAGS.batch_size)
+            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, batch_size)
 
         #
         # Evaluate the AE. 
@@ -391,7 +338,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         #
         model_eval = model
         preds_tf = model_eval(x_tf)
-        preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
+        preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
         print('Test accuracy after E-Net attack: %0.2f' % calc_acc(Y_test, preds))
         print('Maximum per-pixel delta: %0.3f' % np.max(np.abs(X_test - X_adv)))
         print('Mean per-pixel delta: %0.3f' % np.mean(np.abs(X_test - X_adv)))
@@ -399,7 +346,7 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         print('l1: ', np.sum(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Elastic_c%03d' % c, CLASSES)
+        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Elastic_c%03d' % c)
         acc_all_elastic[idx] = calc_acc(Y_test, preds)
 
 
@@ -422,9 +369,9 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         # on the test data.
         #
         if Y_target is not None:
-            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, FLAGS.batch_size)
+            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_target, batch_size)
         else:
-            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, FLAGS.batch_size)
+            X_adv = run_in_batches(sess, x_tf, y_tf, x_adv_tf, X_test, Y_test, batch_size)
 
         #
         # Evaluate the AE. 
@@ -432,12 +379,12 @@ def attack_lisa_cnn(sess, cnn_weight_file, y_target=None, standardize=True):
         #
         model_eval = model
         preds_tf = model_eval(x_tf)
-        preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, FLAGS.batch_size)
+        preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
         print('Test accuracy after SMM attack: %0.3f' % calc_acc(Y_test, preds))
         print('Maximum per-pixel delta: %0.1f' % np.max(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Saliency_%02d' % epsilon, CLASSES)
+        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Saliency_%02d' % epsilon)
         acc_all_saliency[idx] = calc_acc(Y_test, preds)
 
 
@@ -460,21 +407,29 @@ def main(argv=None):
     tf.set_random_seed(1246)
 
     gtsrb_image_dir = sys.argv[1] if len(sys.argv) > 1 else '~/Data/GTSRB/Final_Training/Images'
+    target_class = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+
     output_dir = './output_gtsrb'
     cnn_weight_file = os.path.join(output_dir, 'gtsrb.ckpt')
 
-    # pre-process images
-    preprocess_data(gtsrb_image_dir, output_dir)
+    # load_data
+    x_train, y_train, x_test, y_test = load_gtsrb_data(gtsrb_image_dir, output_dir)
+    n_classes = np.max(y_train+1)
+
+    y_train = to_categorical(y_train, n_classes)
+    y_test = to_categorical(y_test, n_classes)
+
+    print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
 
 
     # Do CNN stuff
     with tf.Session() as sess:
       if not os.path.exists(output_dir) or not tf.train.checkpoint_exists(cnn_weight_file):
           print("Training CNN")
-          train_cnn(sess, cnn_weight_file)
+          train_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file)
       else:
           print("Attacking CNN")
-          attack_lisa_cnn(sess, cnn_weight_file, y_target=0)
+          attack_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file, y_target=target_class)
 
 
 if __name__ == '__main__':
