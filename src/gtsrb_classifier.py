@@ -289,7 +289,7 @@ def attack_cnn(sess, data, cnn_weight_file, out_dir, y_target=None, batch_size=1
         plt.ylabel('CNN accuracy')
         plt.title('ell_%s' % ord)
         plt.grid('on')
-        plt.savefig('./output/attack_accuracy_%s.png' % ord, bbox_inches='tight')
+        plt.savefig(os.path.join(out_dir, 'attack_accuracy_%s.png' % ord), bbox_inches='tight')
         plt.close()
      
         plt.figure()
@@ -300,7 +300,7 @@ def attack_cnn(sess, data, cnn_weight_file, out_dir, y_target=None, batch_size=1
         plt.ylabel('Targeted AE Success Rate')
         plt.title('ell_%s' % ord)
         plt.grid('on')
-        plt.savefig('./output/targeted_attack_accuracy_%s.png' % ord, bbox_inches='tight')
+        plt.savefig(os.path.join(out_dir, 'targeted_attack_accuracy_%s.png' % ord), bbox_inches='tight')
         plt.close()
 
 
