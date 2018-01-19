@@ -1,7 +1,7 @@
 """  Helper functions.
 """
 
-import os, math
+import os, math, time
 from PIL import Image
 
 import numpy as np
@@ -167,6 +167,8 @@ def save_images_and_estimates(x, y_true_OH, y_est_OH, base_dir, y_to_classname=N
     if np.max(x) <= 1.0:
         x = x * 255.
 
+    tic = time.time()
+
     for idx in range(x.shape[0]):
         y_true = np.argmax(y_true_OH[idx,...])
         y_est = np.argmax(y_est_OH[idx,...])
@@ -184,6 +186,8 @@ def save_images_and_estimates(x, y_true_OH, y_est_OH, base_dir, y_to_classname=N
 
         img = Image.fromarray(np.squeeze(x[idx]).astype('uint8'))
         img.save(os.path.join(out_dir, fn))
+
+    print('[save_images]: saved %d images in %d seconds' % (x.shape[0], time.time()-tic))
 
 
         
