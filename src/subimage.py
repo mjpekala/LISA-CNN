@@ -49,7 +49,11 @@ class Subimage(object):
     out += ' with %d unique classes' % len(np.unique(np.array(self._y)))
     return out
 
+  
+  def __len__(self):
+    return len(self._y)
 
+  
   def add(self, filename, bbox, y, gid=None):
     self._filenames.append(filename)
     self._bbox.append(bbox)
