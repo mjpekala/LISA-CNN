@@ -435,7 +435,7 @@ def main(argv=None):
           train_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file)
       else:
           print("Attacking CNN")
-          attack_cnn(sess, (x_train, y_train, x_test, y_test), output_dir, cnn_weight_file, y_target=target_class)
+          attack_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file, output_dir, y_target=target_class)
 
 
 if __name__ == '__main__':
