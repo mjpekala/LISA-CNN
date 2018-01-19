@@ -11,8 +11,12 @@ CLEVERHANS_DIR=./cleverhans
 # provided with LISA a-priori.
 LISA_DIR=/home/pekalmj1/Data/LISA/annotations
 
+GTSRB_DIR=~/Data/GTSRB/Final_Training/Images
 
-default : lisa-cnn
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+default : lisa
 
 
 # Check out the cleverhans project, if it was not already
@@ -20,12 +24,27 @@ $(CLEVERHANS_DIR) :
 	git clone https://github.com/tensorflow/cleverhans.git
 
 
+#-------------------------------------------------------------------------------
+# LISA data
+#-------------------------------------------------------------------------------
 # This target either:
 #   1.  Trains the LISA-CNN, if the weights do not exist locally or
 #   2.  Runs some adversarial attacks on a previously trained network.
 # 
-lisa-cnn : $(CLEVERHANS_DIR)
+lisa : $(CLEVERHANS_DIR)
 	CUDA_VISIBLE_DEVICES="1", PYTHONPATH=$(CLEVERHANS_DIR) python ./lisacnn.py --data_dir=$(LISA_DIR) 
+
+
+#-------------------------------------------------------------------------------
+# GTSRB data
+#-------------------------------------------------------------------------------
+gtsrb : $(CLEVERHANS_DIR)
+	CUDA_VISIBLE_DEVICES="1", PYTHONPATH=$(CLEVERHANS_DIR) python ./gtsrb_classifier.py $(GTSRB_DIR) 
+
+
+#-------------------------------------------------------------------------------
+# Misc.
+#-------------------------------------------------------------------------------
 
 # remove AE (e.g. so they can be re-computed)
 clean :
