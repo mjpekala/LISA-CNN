@@ -147,7 +147,7 @@ def train_cnn(sess, data, cnn_weight_file, batch_size=128):
 
 
 
-def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
+def attack_cnn(sess, data, cnn_weight_file, out_dir, y_target=None, batch_size=128):
     """ Generates AE for the LISA-CNN.
         Assumes you have already run train_lisa_cnn() to train the network.
     """
@@ -191,7 +191,7 @@ def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
     print('[info]: accuracy on clean test data: %0.2f' % acc_clean)
     print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(predictions, axis=1)))
 
-    save_images_and_estimates(X_test, Y_test, predictions, 'output/Images/Original')
+    save_images_and_estimates(X_test, Y_test, predictions, os.path.join(out_dir, 'Images', 'Original'))
 
 
     #--------------------------------------------------
@@ -226,8 +226,8 @@ def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc)
+            save_images_and_estimates(X_adv, Y_test, preds, os.path.join(out_dir, 'Images', desc))
+            #save_images_and_estimates(X_test - X_adv, Y_test, os.path.join(out_dir, 'Images', desc))
             acc_fgm[ord].append(acc)
             acc_tgt_fgm[ord].append(acc_tgt)
 
@@ -272,8 +272,8 @@ def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
             preds = run_in_batches(sess, x_tf, y_tf, preds_tf, X_adv, Y_test, batch_size)
             acc, acc_tgt = analyze_ae(X_test, X_adv, Y_test, preds, desc, y_target)
 
-            save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/%s' % desc)
-            save_images_and_estimates(X_test - X_adv, Y_test, preds, 'output/Deltas/%s' % desc)
+            save_images_and_estimates(X_adv, Y_test, preds, os.path.join(out_dir, 'Images', desc))
+            #save_images_and_estimates(X_test - X_adv, Y_test, preds, os.path.join(out_dir, 'Images', desc))
             acc_ifgm[ord].append(acc)
             acc_tgt_ifgm[ord].append(acc_tgt)
 
@@ -346,7 +346,7 @@ def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
         print('l1: ', np.sum(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Elastic_c%03d' % c)
+        save_images_and_estimates(X_adv, Y_test, preds, os.path.join(out_dir, 'Images', 'Elastic_c%03d' % c))
         acc_all_elastic[idx] = calc_acc(Y_test, preds)
 
 
@@ -384,7 +384,7 @@ def attack_cnn(sess, data, cnn_weight_file, y_target=None, batch_size=128):
         print('Maximum per-pixel delta: %0.1f' % np.max(np.abs(X_test - X_adv)))
         print(confusion_matrix(np.argmax(Y_test, axis=1), np.argmax(preds, axis=1)))
 
-        save_images_and_estimates(X_adv, Y_test, preds, 'output/Images/Saliency_%02d' % epsilon)
+        save_images_and_estimates(X_adv, Y_test, preds, os.path.join(out_dir, 'Images', 'Saliency_%02d' % epsilon))
         acc_all_saliency[idx] = calc_acc(Y_test, preds)
 
 
@@ -406,13 +406,18 @@ def main(argv=None):
     np.random.seed(1066)
     tf.set_random_seed(1246)
 
+    #--------------------------------------------------
+    # Some experiment parameters
+    #--------------------------------------------------
     gtsrb_image_dir = sys.argv[1] if len(sys.argv) > 1 else '~/Data/GTSRB/Final_Training/Images'
     target_class = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 
     output_dir = './output_gtsrb'
     cnn_weight_file = os.path.join(output_dir, 'gtsrb.ckpt')
 
+    #--------------------------------------------------
     # load_data
+    #--------------------------------------------------
     x_train, y_train, x_test, y_test = load_gtsrb_data(gtsrb_image_dir, output_dir)
     n_classes = np.max(y_train+1)
 
@@ -421,15 +426,16 @@ def main(argv=None):
 
     print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
 
-
-    # Do CNN stuff
+    #--------------------------------------------------
+    # Train or attack CNN
+    #--------------------------------------------------
     with tf.Session() as sess:
       if not os.path.exists(output_dir) or not tf.train.checkpoint_exists(cnn_weight_file):
           print("Training CNN")
           train_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file)
       else:
           print("Attacking CNN")
-          attack_cnn(sess, (x_train, y_train, x_test, y_test), cnn_weight_file, y_target=target_class)
+          attack_cnn(sess, (x_train, y_train, x_test, y_test), output_dir, cnn_weight_file, y_target=target_class)
 
 
 if __name__ == '__main__':
